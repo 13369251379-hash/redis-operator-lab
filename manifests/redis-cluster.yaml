@@ -1,0 +1,63 @@
+# ============================================================
+# RedisCluster CR —— 学习对照实验（第 2 弹）
+# 目的：用 OT-CONTAINER-KIT redis-operator 部署 Redis Cluster（分片模式）
+#      并与第 1 弹的 RedisReplication（主从+sentinel）对比
+#
+# 架构：clusterSize=3 分片，每分片 1 主(leader) + 1 从(follower) = 6 Pod
+#   注意：leader/follower replicas 未设置时默认 = clusterSize
+#   RedisCluster 模式无 sentinel，故障切换靠集群自身（gossip + 槽位选举）
+#
+# 镜像契约（同第 1 弹）：operator 注入 env（SETUP_MODE=cluster 等），
+#   必须用 opstree/redis 镜像的 entrypoint 消费
+# ============================================================
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: redis-cluster
+  namespace: redis-op-lab
+spec:
+  # 分片数：3 个分片
+  clusterSize: 3
+  clusterVersion: v7
+  # 开启持久化（entrypoint 会写 appendonly/save 到 /data）
+  persistenceEnabled: true
+
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.4.8
+    imagePullPolicy: IfNotPresent
+    # 密码来源：同 RedisReplication 实验（Secret/Key 结构 name/key）
+    redisSecret:
+      name: redis-secret
+      key: redis-password
+
+  # 每分片 1 个 leader（master），共 3 个
+  redisLeader:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # 每分片 1 个 follower（replica），共 3 个
+  redisFollower:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # 数据盘：每 Pod 1Gi 本地盘（prod 为 20Gi ESSD，本地调小）
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
