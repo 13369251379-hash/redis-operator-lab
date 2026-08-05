@@ -1,0 +1,31 @@
+# ============================================================
+# 子 App 1：redis-operator —— 由父 App(redis-gitops) 管理
+# sync-wave: 0 → 最先应用。内容为 helm 渲染的 operator 清单
+#   （CRD + ServiceAccount + ClusterRole/Binding + Deployment）。
+# 顺序：Argo CD 内置排序保证 CRD 先于 Deployment；
+#       父 App 等待本 App Healthy（operator 就绪）后才进入下一 wave。
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/13369251379-hash/redis-operator-lab.git
+    targetRevision: main
+    path: gitops/operator
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redis-op-lab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

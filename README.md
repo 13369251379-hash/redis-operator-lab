@@ -7,12 +7,23 @@
 
 ```
 Redis-Operator学习/
-├── manifests/
+├── manifests/                    # 前两弹实验 CR（历史参考）
 │   ├── redis-replication.yaml    # 第 1 弹：1 个 CR 复刻 prod 主从+sentinel 架构
 │   └── redis-cluster.yaml        # 第 2 弹：RedisCluster 分片模式 CR
+├── gitops/                       # 第二阶段：Argo CD GitOps 结构
+│   ├── apps/                     # 父 App(redis-gitops) 源：两个子 App（sync-wave 排序）
+│   │   ├── redis-operator.yaml   #   子 App 1（wave 0）：operator（CRD + Deployment）
+│   │   └── redis-replication.yaml#   子 App 2（wave 2）：RedisReplication CR + Secret
+│   ├── operator/                 # 子 App 1 源：helm 渲染的 operator 清单
+│   │   ├── crds/*.yaml           #   4 个 CRD（先于 CR 应用）
+│   │   └── operator.yaml         #   SA + ClusterRole/Binding + Deployment
+│   └── redis/                    # 子 App 2 源：RedisReplication CR + redis-secret
+│       ├── redis-replication.yaml
+│       └── redis-secret.yaml
 ├── docs/
 │   ├── 手写方案vs-Operator对照.md # 第 1 弹完整学习文档
-│   └── RedisCluster-实验记录.md   # 第 2 弹实验记录（故障切换/扩容/死节点坑）
+│   ├── RedisCluster-实验记录.md   # 第 2 弹实验记录（故障切换/扩容/死节点坑）
+│   └── ArgoCD-GitOps-实验记录.md  # 第二阶段实验记录
 └── README.md
 ```
 
@@ -26,10 +37,12 @@ Redis-Operator学习/
 
 ## 环境状态（2026-08-05）
 
-- 本地集群：Docker Desktop K8s 单节点（4 CPU / 16GB）
-- 命名空间 `redis-op-lab`：operator + RedisCluster（3 分片，9 Pod）已部署并验证通过
-- 实验数据不保留价值，可直接 `kubectl delete -n redis-op-lab rediscluster redis-cluster`
+- 本地集群：Docker Desktop K8s 单节点（4 CPU / 16GB），context=docker-desktop
+- 命名空间 `redis-op-lab`：operator + Redis 由 **Argo CD** 统一管理（GitOps 第二阶段）
+- Argo CD：`argocd` 命名空间，父 App `redis-gitops`（App-of-Apps）
+- 仓库凭据：GitHub 私有仓库 `redis-operator-lab`（HTTPS + PAT），repo-server 走宿主 Clash 代理
+- 清场命令：`kubectl delete -n redis-op-lab rediscluster redis-cluster`；`helm uninstall redis-operator -n redis-op-lab`
 
 ## 复现
 
-见 `docs/手写方案vs-Operator对照.md` 第 8 节。
+见 `docs/手写方案vs-Operator对照.md` 第 8 节；GitOps 接入见 `docs/ArgoCD-GitOps-实验记录.md`。

@@ -1,0 +1,32 @@
+# ============================================================
+# 子 App 2：redis-replication —— 由父 App(redis-gitops) 管理
+# sync-wave: 2 → 等 wave 0（operator）Healthy 后才应用。
+# 内容：RedisReplication CR + redis-secret。
+# 观察点：Argo CD 只管理 git 里的 CR/Secret；operator 派生出的
+#   StatefulSet/Service/PVC 不在 git 里 → 由 operator（第二循环）管理，
+#   Argo CD 不干预 → 双循环不冲突。
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis-replication
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/13369251379-hash/redis-operator-lab.git
+    targetRevision: main
+    path: gitops/redis
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redis-op-lab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

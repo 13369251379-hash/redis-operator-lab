@@ -1,0 +1,54 @@
+# ============================================================
+# RedisReplication CR —— GitOps 管理版本（第二阶段）
+# 由 Argo CD App(redis-replication) 从 git 拉取并应用。
+# 内容与 manifests/redis-replication.yaml（第一阶段实验）一致：
+#   1 master + 2 slave + 3 Sentinel（quorum=2），贴近 prod 主从形态
+# ============================================================
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication
+  namespace: redis-op-lab
+spec:
+  # 1 master + 2 slave
+  clusterSize: 3
+
+  kubernetesConfig:
+    # 镜像契约：operator 注入 env，靠 opstree/redis 镜像 entrypoint 消费
+    image: quay.io/opstree/redis:v7.4.8
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: redis-secret
+      key: redis-password
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+
+  sentinel:
+    image: quay.io/opstree/redis-sentinel:v7.4.8
+    imagePullPolicy: IfNotPresent
+    size: 3
+    quorum: "2"
+    redisSecret:
+      name: redis-secret
+      key: redis-password
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

@@ -1,0 +1,244 @@
+# Source: redis-operator/templates/service-account.yaml
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: redis-operator
+  namespace: redis-op-lab
+  labels:
+    app.kubernetes.io/name : redis-operator
+    helm.sh/chart : redis-operator-0.25.0
+    app.kubernetes.io/managed-by : Helm
+    app.kubernetes.io/instance : redis-operator
+    app.kubernetes.io/version : 0.25.0
+    app.kubernetes.io/component: service-account
+    app.kubernetes.io/part-of : redis-operator
+---
+# Source: redis-operator/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: redis-operator
+  labels:
+    app.kubernetes.io/name : redis-operator
+    helm.sh/chart : redis-operator-0.25.0
+    app.kubernetes.io/managed-by : Helm
+    app.kubernetes.io/instance : redis-operator
+    app.kubernetes.io/version : 0.25.0
+    app.kubernetes.io/component: role
+    app.kubernetes.io/part-of : redis-operator
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+- apiGroups:
+  - redis.redis.opstreelabs.in
+  resources:
+  - rediss
+  - redisclusters
+  - redisreplications
+  - redis
+  - rediscluster
+  - redissentinel
+  - redissentinels
+  - redisreplication
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# nonResourceURLs and cluster-scoped resources (CRDs) are only valid on a ClusterRole.
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - get
+- apiGroups:
+  - "apiextensions.k8s.io"
+  resources:
+  - "customresourcedefinitions"
+  verbs:
+  - "get"
+  - "list"
+  - "watch"
+- apiGroups:
+  - redis.redis.opstreelabs.in
+  resources:
+  - redis/finalizers
+  - rediscluster/finalizers
+  - redisclusters/finalizers
+  - redissentinel/finalizers
+  - redissentinels/finalizers
+  - redisreplication/finalizers
+  - redisreplications/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - redis.redis.opstreelabs.in
+  resources:
+  - redis/status
+  - rediscluster/status
+  - redisclusters/status
+  - redissentinel/status
+  - redissentinels/status
+  - redisreplication/status
+  - redisreplications/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - pods/exec
+  - pods
+  - services
+  - configmaps
+  - events
+  - persistentvolumeclaims
+  # namespaces is a cluster-scoped resource; only grant it on a ClusterRole.
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - "coordination.k8s.io"
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+    - "policy"
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: redis-operator/templates/role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: redis-operator
+  labels:
+    app.kubernetes.io/name : redis-operator
+    helm.sh/chart : redis-operator-0.25.0
+    app.kubernetes.io/managed-by : Helm
+    app.kubernetes.io/instance : redis-operator
+    app.kubernetes.io/version : 0.25.0
+    app.kubernetes.io/component: role-binding
+    app.kubernetes.io/part-of : redis-operator
+subjects:
+- kind: ServiceAccount
+  name: redis-operator
+  namespace: redis-op-lab
+roleRef:
+  kind: ClusterRole
+  name: redis-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: redis-operator/templates/operator-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-operator
+  namespace: redis-op-lab
+  labels:
+    app.kubernetes.io/name: redis-operator
+    helm.sh/chart: redis-operator-0.25.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: redis-operator
+    app.kubernetes.io/version: 0.25.0
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: redis-operator
+spec:
+  strategy:
+    {}
+  replicas: 1
+  selector:
+    matchLabels:
+      name: redis-operator
+  template:
+    metadata:
+      labels:
+        name: redis-operator
+    spec:
+      automountServiceAccountToken: true
+      securityContext:
+        {}
+      containers:
+      - name: "redis-operator"
+        securityContext:
+          {}
+        image: "quay.io/opstree/redis-operator:v0.25.0"
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: probe
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: probe
+        command:
+        - /operator
+        - manager
+        args:
+        - --leader-elect
+        - --metrics-bind-address=:8080
+        - --kube-client-timeout=60s
+        - --max-concurrent-reconciles=3
+        ports:
+        - containerPort: 8081
+          name: probe
+          protocol: TCP
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        env:
+        - name: INIT_CONTAINER_IMAGE
+          value: quay.io/opstree/redis-operator:v0.25.0
+        - name: ENABLE_WEBHOOKS
+          value: "false"
+        - name: SERVICE_DNS_DOMAIN
+          value: "cluster.local"
+        - name: FEATURE_GATES
+          value: "GenerateConfigInInitContainer=false"
+        resources: 
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 500m
+            memory: 500Mi
+      serviceAccountName: "redis-operator"
+      serviceAccount: "redis-operator"
