@@ -23,7 +23,8 @@ Redis-Operator学习/
 ├── docs/
 │   ├── 手写方案vs-Operator对照.md # 第 1 弹完整学习文档
 │   ├── RedisCluster-实验记录.md   # 第 2 弹实验记录（故障切换/扩容/死节点坑）
-│   └── ArgoCD-GitOps-实验记录.md  # 第二阶段实验记录
+│   ├── ArgoCD-GitOps-实验记录.md  # 第二阶段实验记录
+│   └── RedisCluster-扩容运维SOP.md# 第 4 弹：扩容运维完整 SOP（三类卡住排查+处置）
 └── README.md
 ```
 
@@ -33,7 +34,10 @@ Redis-Operator学习/
 - operator 有「镜像契约」：密码/模式靠 env + entrypoint，官方 redis 镜像不兼容
 - 第 1 弹（RedisReplication）：故障切换 RTO ~18s，operator 自动更新 Service 指向
 - 第 2 弹（RedisCluster）：3 分片自动建好，故障自动切换 ~23s；**扩容会被失败节点卡死，需 CLUSTER FORGET 自愈**
-- 当前 prod **不建议迁移**（镜像契约/CRD 升级/Argo CD 双循环是新增负担）
+- 第 4 弹（扩容运维 SOP）：v0.25.0 扩/缩容大部分自动（加分片自动 rebalance 分槽、减分片自动迁槽），
+  但**三类"扩容卡住"operator 不自愈**：①死节点顶高 master 计数 ②节点 CPU 不足新 Pod Pending ③新节点残留脏 PVC 数据 add-node 被拒。
+  详见 `docs/RedisCluster-扩容运维SOP.md`
+- 当前 prod **不建议迁移**（镜像契约/CRD 升级/Argo CD 双循环/扩缩容无自愈是新增负担）
 
 ## 环境状态（2026-08-05）
 
