@@ -1,0 +1,65 @@
+# ============================================================
+# RedisReplication CR —— 学习对照实验
+# 目的：用 OT-CONTAINER-KIT redis-operator 的 1 个 CR 复刻
+#       overlays/prod/ 手写清单的「1 主 + 2 从 + 3 Sentinel」架构
+#
+# 与 prod 手写方案对照：
+#   clusterSize: 3      = 1 master + 2 slave（总节点数，同 prod）
+#   sentinel.size: 3    = 3 个 Sentinel（同 prod）
+#   sentinel.quorum: 2  = 判定主节点宕机的仲裁数（同 prod）
+#   镜像                  = opstree/redis:v7.4.8（镜像契约需要，见下方注释；7.4.8 是最接近 prod 7.4.3 的 opstree tag）
+#   资源/存储              = 为本地 4CPU/16GB 单节点调小，仅学习用
+# ============================================================
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication
+  namespace: redis-op-lab
+spec:
+  # 1 master + 2 slave
+  clusterSize: 3
+
+  kubernetesConfig:
+    # 注意：operator 通过环境变量注入密码/模式，靠镜像 entrypoint 消费。
+    # 官方 redis 镜像不认这些变量 → 密码不生效。必须用 opstree/redis（镜像契约）。
+    image: quay.io/opstree/redis:v7.4.8
+    imagePullPolicy: IfNotPresent
+    # 密码来源：与 prod 相同的 Secret/Key 结构（CRD 字段为 name/key）
+    redisSecret:
+      name: redis-secret
+      key: redis-password
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # 每个 Redis 节点挂载 1Gi 本地盘（prod 是 20Gi ESSD）
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+
+  # Sentinel 块存在即启用，operator 通过查询 Sentinel 确定当前 master
+  sentinel:
+    # sentinel 必须用 opstree/redis-sentinel（entrypoint 读 QUORUM/MASTER_PASSWORD）
+    image: quay.io/opstree/redis-sentinel:v7.4.8
+    imagePullPolicy: IfNotPresent
+    size: 3
+    quorum: "2"
+    redisSecret:
+      name: redis-secret
+      key: redis-password
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
