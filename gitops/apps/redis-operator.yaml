@@ -20,6 +20,10 @@ spec:
     repoURL: https://github.com/13369251379-hash/redis-operator-lab.git
     targetRevision: main
     path: gitops/operator
+    # 学习点：Argo CD 的 directory 源默认不递归子目录！
+    # 不设 recurse:true 时，crds/ 子目录会被忽略 → CRD 不被 GitOps 管理。
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: redis-op-lab
